@@ -16,3 +16,4 @@ const DEFAULT_SETTINGS = [
 
 const ABSOLUTE_MAX_PAGES = 10;
 const YOUTUBE_SEARCH_ENDPOINT = 'https://www.googleapis.com/youtube/v3/search';
+const YOUTUBE_VIDEOS_ENDPOINT = 'https://www.googleapis.com/youtube/v3/videos';

@@ -89,4 +89,80 @@ class YouTubeService
             'prevPageToken' => $decoded['prevPageToken'] ?? null,
         ];
     }
+
+    public function fetchVideoDetails(array $videoIds): array
+    {
+        $filteredIds = array_values(array_unique(array_filter(array_map('strval', $videoIds), static fn(string $id): bool => $id !== '')));
+
+        if ($filteredIds === []) {
+            return ['success' => true, 'details' => []];
+        }
+
+        $params = [
+            'part' => 'snippet,statistics',
+            'id' => implode(',', $filteredIds),
+            'maxResults' => 50,
+            'key' => $this->apiKey,
+        ];
+
+        $url = YOUTUBE_VIDEOS_ENDPOINT . '?' . http_build_query($params);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            $this->logger->error('Erro no cURL ao buscar detalhes dos vídeos', ['ids' => $filteredIds, 'error' => $curlError]);
+            return ['success' => false, 'error' => 'Erro ao buscar vídeos'];
+        }
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            $this->logger->error('Resposta inválida da YouTube API (detalhes)', ['response' => $response]);
+            return ['success' => false, 'error' => 'Erro ao buscar vídeos'];
+        }
+
+        if ($httpCode >= 400 || isset($decoded['error'])) {
+            $message = 'Erro ao buscar vídeos';
+            $apiMessage = (string)($decoded['error']['message'] ?? '');
+
+            if (stripos($apiMessage, 'quota') !== false || stripos($apiMessage, 'rate') !== false) {
+                $message = 'Limite de requisições atingido';
+            }
+
+            $this->logger->error('Erro de API do YouTube ao buscar detalhes', [
+                'http_code' => $httpCode,
+                'api_error' => $decoded['error'] ?? null,
+                'ids' => $filteredIds,
+            ]);
+
+            return ['success' => false, 'error' => $message];
+        }
+
+        $details = [];
+        foreach (($decoded['items'] ?? []) as $item) {
+            $id = (string)($item['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            $details[$id] = [
+                'channel_title' => trim((string)($item['snippet']['channelTitle'] ?? '')),
+                'view_count' => (int)($item['statistics']['viewCount'] ?? 0),
+            ];
+        }
+
+        return ['success' => true, 'details' => $details];
+    }
+
 }

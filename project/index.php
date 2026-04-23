@@ -59,6 +59,28 @@ $settings = $settingsRepo->load();
         <div id="loader" class="loader hidden"></div>
     </section>
 
+    <section class="panel filters-panel">
+        <h2>Filtros dinâmicos</h2>
+        <div class="form-grid filters-grid">
+            <label>
+                Nome (título ou canal)
+                <input type="text" id="nameFilter" placeholder="Digite para filtrar em tempo real">
+            </label>
+            <label>
+                Visualizações
+                <select id="viewsFilterOperator">
+                    <option value="">Sem filtro</option>
+                    <option value="gt">Maior que</option>
+                    <option value="lt">Menor que</option>
+                </select>
+            </label>
+            <label>
+                Valor de visualizações
+                <input type="number" id="viewsFilterValue" min="0" step="1" placeholder="Ex: 10000">
+            </label>
+        </div>
+    </section>
+
     <section class="results-grid" id="results"></section>
 
     <section class="panel export-panel">

@@ -68,7 +68,25 @@ for ($i = 0; $i < $pages; $i++) {
         exit;
     }
 
-    $normalizedItems = $normalizer->normalizeItems($result['items'] ?? []);
+    $rawItems = $result['items'] ?? [];
+    $videoIds = [];
+
+    foreach ($rawItems as $rawItem) {
+        $id = (string)($rawItem['id']['videoId'] ?? '');
+        if ($id !== '') {
+            $videoIds[] = $id;
+        }
+    }
+
+    $detailsResult = $service->fetchVideoDetails($videoIds);
+
+    if (($detailsResult['success'] ?? false) !== true) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $detailsResult['error'] ?? 'Erro ao buscar vídeos']);
+        exit;
+    }
+
+    $normalizedItems = $normalizer->normalizeItems($rawItems, $detailsResult['details'] ?? []);
     $items = array_merge($items, $normalizedItems);
 
     $prevToken = $result['prevPageToken'] ?? $prevToken;
