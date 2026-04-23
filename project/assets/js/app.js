@@ -6,6 +6,7 @@
         nextToken: '',
         prevToken: '',
         currentItems: [],
+        filteredItems: [],
         selectedMap: new Map(),
     };
 
@@ -21,6 +22,9 @@
         feedback: document.getElementById('feedback'),
         loader: document.getElementById('loader'),
         results: document.getElementById('results'),
+        nameFilter: document.getElementById('nameFilter'),
+        viewsFilterOperator: document.getElementById('viewsFilterOperator'),
+        viewsFilterValue: document.getElementById('viewsFilterValue'),
         linksOutput: document.getElementById('linksOutput'),
         titlesOutput: document.getElementById('titlesOutput'),
         copyLinksBtn: document.getElementById('copyLinksBtn'),
@@ -59,11 +63,16 @@
         return sanitized;
     }
 
+    function formatViews(value) {
+        return Number(value || 0).toLocaleString('pt-BR');
+    }
+
     function renderResults(items) {
         elements.results.innerHTML = '';
 
         if (!items.length) {
-            showMessage('Nenhum resultado encontrado', 'warning');
+            showMessage('Nenhum vídeo corresponde aos filtros aplicados', 'warning');
+            syncSelectAllState();
             return;
         }
 
@@ -83,6 +92,10 @@
                     </label>
                 </div>
                 <h3 title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</h3>
+                <div class="video-meta">
+                    <span><strong>Canal:</strong> ${escapeHtml(item.channel_title || 'Canal não informado')}</span>
+                    <span><strong>Visualizações:</strong> ${formatViews(item.view_count)}</span>
+                </div>
                 <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.url}</a>
             `;
 
@@ -101,12 +114,12 @@
     }
 
     function syncSelectAllState() {
-        if (!state.currentItems.length) {
+        if (!state.filteredItems.length) {
             elements.selectAll.checked = false;
             return;
         }
 
-        const everySelected = state.currentItems.every((item) => state.selectedMap.has(item.video_id));
+        const everySelected = state.filteredItems.every((item) => state.selectedMap.has(item.video_id));
         elements.selectAll.checked = everySelected;
     }
 
@@ -124,6 +137,32 @@
             }
         });
         return Array.from(map.values());
+    }
+
+    function applyFilters() {
+        const term = (elements.nameFilter?.value || '').trim().toLowerCase();
+        const operator = elements.viewsFilterOperator?.value || '';
+        const rawValue = Number(elements.viewsFilterValue?.value || 0);
+        const hasViewFilter = (operator === 'gt' || operator === 'lt') && Number.isFinite(rawValue) && rawValue >= 0;
+
+        state.filteredItems = state.currentItems.filter((item) => {
+            const title = (item.title || '').toLowerCase();
+            const channel = (item.channel_title || '').toLowerCase();
+            const matchesTerm = term === '' || title.includes(term) || channel.includes(term);
+
+            if (!matchesTerm) {
+                return false;
+            }
+
+            if (!hasViewFilter) {
+                return true;
+            }
+
+            const views = Number(item.view_count || 0);
+            return operator === 'gt' ? views > rawValue : views < rawValue;
+        });
+
+        renderResults(state.filteredItems);
     }
 
     async function search(pageToken = '', resetHistory = false) {
@@ -161,7 +200,7 @@
                 state.pageIndex = 0;
             }
 
-            renderResults(state.currentItems);
+            applyFilters();
             updateOutputs();
             updatePaginationState();
 
@@ -236,7 +275,7 @@
     elements.selectAll.addEventListener('change', () => {
         const shouldSelect = elements.selectAll.checked;
 
-        state.currentItems.forEach((item) => {
+        state.filteredItems.forEach((item) => {
             if (shouldSelect) {
                 state.selectedMap.set(item.video_id, item);
             } else {
@@ -251,6 +290,10 @@
         updateOutputs();
         syncSelectAllState();
     });
+
+    elements.nameFilter?.addEventListener('input', applyFilters);
+    elements.viewsFilterOperator?.addEventListener('change', applyFilters);
+    elements.viewsFilterValue?.addEventListener('input', applyFilters);
 
     elements.nextPageBtn.addEventListener('click', () => {
         if (!state.nextToken) return;
@@ -275,7 +318,7 @@
     elements.clearSelectionBtn.addEventListener('click', clearSelection);
 
     function escapeHtml(text) {
-        return text
+        return String(text)
             .replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
             .replaceAll('>', '&gt;')
